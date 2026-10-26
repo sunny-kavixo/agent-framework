@@ -1,0 +1,65 @@
+name: verify-9693-contentunderstanding
+
+on:
+  # Push bootstraps this fork-only workflow; workflow_dispatch remains available
+  # for later manual reruns without changing the upstream repository.
+  push:
+    branches:
+      - verify/9693-contentunderstanding-floor
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Azure Content Understanding dependency floor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: python
+    env:
+      UV_PYTHON: "3.13"
+      UV_CACHE_DIR: /tmp/.uv-cache
+    steps:
+      - name: Check out verification branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python and install the locked workspace
+        uses: ./.github/actions/python-setup
+        with:
+          python-version: ${{ env.UV_PYTHON }}
+          os: ${{ runner.os }}
+
+      - name: Record runtime and resolved CU SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python --version
+          uv --version
+          python - <<'PY'
+          import importlib.metadata
+          import inspect
+          from azure.ai.contentunderstanding import to_llm_input
+
+          print("azure-ai-contentunderstanding:", importlib.metadata.version("azure-ai-contentunderstanding"))
+          print("to_llm_input signature:", inspect.signature(to_llm_input))
+          PY
+
+      - name: Verify the lockfile is consistent
+        run: uv lock --check
+
+      - name: Run lowest-direct dependency-bounds validation
+        run: uv run poe validate-dependency-bounds-test --package azure-contentunderstanding
+
+      - name: Run package syntax and lint checks
+        run: uv run poe syntax --package azure-contentunderstanding
+
+      - name: Run package typing checks
+        run: uv run poe typing --package azure-contentunderstanding
+
+      - name: Run package tests at normal locked resolution
+        run: uv run poe test --package azure-contentunderstanding
