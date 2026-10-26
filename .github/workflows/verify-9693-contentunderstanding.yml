@@ -40,7 +40,8 @@ jobs:
           set -euo pipefail
           python --version
           uv --version
-          python - <<'PY'
+          uv run python --version
+          uv run python - <<'PY'
           import importlib.metadata
           import inspect
           from azure.ai.contentunderstanding import to_llm_input
